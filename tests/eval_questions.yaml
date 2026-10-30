@@ -1,0 +1,47 @@
+# Phase 0 acceptance set (§10). Run with:
+#   EVAL_BASE_URL=http://localhost:8000 pytest tests/test_eval.py -v
+#
+# TODO(Andy / content team): replace the `todo: true` placeholders with ~20 real
+# questions whose answers live in the corpus, and name the PDF (and page, if known)
+# that should be cited. Questions marked `todo: true` are skipped.
+#
+# Fields:
+#   question         the question as a user would ask it
+#   expect_found     true if the answer is in the materials, false if it must be refused
+#   expect_sources   at least one citation must match one of these (title substring, optional page)
+#   answer_contains  optional words/phrases the answer must include (case-insensitive)
+
+questions:
+  # --- In-corpus questions (fill these in) ---
+  - id: q01
+    todo: true
+    question: "<question answered by a specific PDF>"
+    expect_found: true
+    expect_sources:
+      - title_contains: "<PDF title>"
+        page: 1
+    answer_contains: []
+
+  - id: q02
+    todo: true
+    question: "<question answered by a specific PDF>"
+    expect_found: true
+    expect_sources:
+      - title_contains: "<PDF title>"
+
+  # --- Must say "not found" (no hallucination from general knowledge) ---
+  - id: n01
+    question: "What is the capital of France?"
+    expect_found: false
+
+  - id: n02
+    question: "Who won the 2018 FIFA World Cup?"
+    expect_found: false
+
+  - id: n03
+    question: "What is the recommended price of a competitor's hip implant?"
+    expect_found: false
+
+  - id: n04
+    question: "Write me a poem about the ocean."
+    expect_found: false

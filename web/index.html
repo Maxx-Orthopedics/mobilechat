@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maxx Content Q&amp;A</title>
+  <style>
+    :root {
+      --bg: #ffffff; --surface: #f3f5f8; --text: #111418; --muted: #3d4651;
+      --accent: #0b4f8a; --accent-text: #ffffff; --border: #b9c2cc; --error: #a8071a;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --surface: #1b2027; --text: #f2f4f7; --muted: #c3cad3;
+        --accent: #7cc0ff; --accent-text: #06213a; --border: #46505c; --error: #ff8a8a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 18px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    .disclaimer {
+      font-size: 0.95rem; color: var(--muted); border-left: 4px solid var(--accent);
+      padding: 8px 12px; background: var(--surface); margin: 12px 0 24px;
+    }
+    form { display: flex; gap: 12px; flex-wrap: wrap; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; width: 100%; }
+    textarea {
+      flex: 1 1 320px; min-height: 96px; padding: 12px; font: inherit; color: var(--text);
+      background: var(--bg); border: 2px solid var(--border); border-radius: 8px; resize: vertical;
+    }
+    textarea:focus-visible, button:focus-visible, a:focus-visible {
+      outline: 3px solid var(--accent); outline-offset: 2px;
+    }
+    button {
+      min-height: 48px; min-width: 120px; padding: 0 24px; font: inherit; font-weight: 600;
+      color: var(--accent-text); background: var(--accent); border: 0; border-radius: 8px; cursor: pointer;
+      align-self: flex-end;
+    }
+    button:disabled { opacity: 0.6; cursor: progress; }
+    #result { margin-top: 28px; }
+    .answer {
+      white-space: pre-wrap; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .not-found { border-left: 4px solid var(--muted); }
+    .error { color: var(--error); font-weight: 600; }
+    h2 { font-size: 1.15rem; margin: 24px 0 8px; }
+    ol { padding-left: 1.6em; margin: 0; }
+    li { margin: 0 0 4px; }
+    li a {
+      display: inline-flex; align-items: center; min-height: 44px; color: var(--accent);
+      text-underline-offset: 3px;
+    }
+    .status { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Maxx Content Q&amp;A</h1>
+  <p class="status">Ask a question about Maxx Orthopedics product materials.</p>
+  <p class="disclaimer">
+    For internal staff and distributors. Answers come only from Maxx materials and always cite the source.
+    This is not medical, clinical, or surgical advice. Check the cited document before relying on an answer.
+  </p>
+
+  <form id="ask">
+    <label for="question">Your question</label>
+    <textarea id="question" name="question" maxlength="2000" required
+              placeholder="e.g. What sizes are available for the tibial insert?"></textarea>
+    <button type="submit" id="send">Ask</button>
+  </form>
+
+  <section id="result" aria-live="polite"></section>
+</main>
+
+<script>
+  const form = document.getElementById("ask");
+  const input = document.getElementById("question");
+  const send = document.getElementById("send");
+  const result = document.getElementById("result");
+  const sessionId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+
+  function el(tag, attrs = {}, text) {
+    const node = document.createElement(tag);
+    Object.assign(node, attrs);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function render(data) {
+    result.replaceChildren();
+    result.append(el("div", { className: "answer" + (data.foundInMaterials ? "" : " not-found") }, data.answer));
+    if (data.citations && data.citations.length) {
+      result.append(el("h2", {}, "Sources"));
+      const list = el("ol");
+      for (const c of data.citations) {
+        const href = c.url + (c.url.includes("#") ? "" : "#page=" + c.page);
+        const link = el("a", { href, target: "_blank", rel: "noopener" }, `${c.title}, page ${c.page}`);
+        const li = el("li");
+        li.append(link);
+        list.append(li);
+      }
+      result.append(list);
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+    send.disabled = true;
+    send.textContent = "Searching…";
+    result.replaceChildren(el("p", { className: "status" }, "Looking through the materials…"));
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, sessionId }),
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({}))).detail;
+        throw new Error(typeof detail === "string" ? detail : res.statusText || "request failed");
+      }
+      render(await res.json());
+    } catch (err) {
+      result.replaceChildren(el("p", { className: "error" }, "Sorry, something went wrong: " + err.message));
+    } finally {
+      send.disabled = false;
+      send.textContent = "Ask";
+    }
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+</script>
+</body>
+</html>
